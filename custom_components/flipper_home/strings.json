@@ -1,0 +1,11 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Flipper Home",
+        "description": "Enable this integration, then open Voice control in the Android app. Only Flipper buttons you enable there will be added. The phone must remain connected to Flipper."
+      }
+    },
+    "abort": {"already_configured": "Flipper Home is already configured."}
+  }
+}

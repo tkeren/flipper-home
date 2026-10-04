@@ -12,7 +12,7 @@ Discuss larger changes first. Keep changes focused, preserve existing action/aut
 
 Windows: use `gradlew.bat`. SDK 35 and JDK 21 are required. Rebuild capture changes against the exact SDK in `flipper_capture/README.md` and verify exported symbols.
 
-Native checks use a localhost TLS TV fixture and isolated test preferences; they do not send IR/Sub-GHz or connect to a physical TV. Prefer a disposable emulator:
+Native checks use localhost TLS TV and Home Assistant WebSocket fixtures with isolated test preferences; they do not send IR/Sub-GHz or connect to physical devices. Prefer a disposable emulator:
 
 ```sh
 ./gradlew assembleDebugAndroidTest
@@ -22,6 +22,8 @@ adb shell am instrument -w com.flipperhome.test/com.flipperhome.TvChecksInstrume
 ```
 
 This custom runner prints its own success/failure result, not an AndroidX/JUnit suite result.
+
+Home Assistant bridge tests run without dependencies: `python -m unittest discover -s tests -v`. Install `homeassistant==2024.12.5` using Python 3.12 to also run framework checks for schemas, storage, entities and authenticated results. CI runs both sets on Linux. The Windows framework fixture substitutes the unavailable `fchmod` syscall; production Home Assistant targets Linux.
 
 ## Review considerations
 

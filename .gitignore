@@ -18,6 +18,8 @@ Thumbs.db
 *.key
 .env
 .env.*
+__pycache__/
+*.pyc
 captures/
 backups/
 flipper_capture/.vscode/

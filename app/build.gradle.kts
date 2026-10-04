@@ -2,7 +2,7 @@ plugins { id("com.android.application"); id("org.jetbrains.kotlin.android"); id(
 android {
     namespace = "com.flipperhome"
     compileSdk = 35
-    defaultConfig { applicationId = "com.flipperhome"; minSdk = 31; targetSdk = 35; versionCode = 1; versionName = "0.1.0"
+    defaultConfig { applicationId = "com.flipperhome"; minSdk = 31; targetSdk = 35; versionCode = 2; versionName = "0.2.0"
         testInstrumentationRunner = "com.flipperhome.TvChecksInstrumentation"
     }
     buildFeatures { compose = true }
@@ -16,5 +16,9 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
+    androidTestImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
+    androidTestImplementation("com.squareup.okhttp3:okhttp-tls:4.12.0")
 }

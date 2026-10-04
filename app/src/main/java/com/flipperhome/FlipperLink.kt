@@ -421,6 +421,14 @@ class FlipperLink(private val context: Context, private val scope: CoroutineScop
         } finally { captureEvents = null; events.close(); appStarted = null; appClosed = null }
     }
     suspend fun transmit(button: RemoteButton, release: Deferred<Unit>? = null, holdDurationMs: Long? = null, onPressed: () -> Unit = {}) = actions.withLock {
+        transmitLocked(button, release, holdDurationMs, onPressed)
+    }
+    /** Voice requests fail promptly during capture/playback rather than being queued. */
+    suspend fun voiceTransmit(button: RemoteButton, duration: Long?) {
+        check(actions.tryLock()) { "Flipper is busy" }
+        try { transmitLocked(button, null, duration) } finally { actions.unlock() }
+    }
+    private suspend fun transmitLocked(button: RemoteButton, release: Deferred<Unit>?, holdDurationMs: Long?, onPressed: () -> Unit = {}) {
         check(connected.value) { "Connect your Flipper first" }
         val began = android.os.SystemClock.elapsedRealtime()
         val started = CompletableDeferred<Unit>(); appStarted = started

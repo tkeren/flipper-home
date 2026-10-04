@@ -44,7 +44,7 @@ class FlipperConnectionService : Service() {
             .addAction(Notification.Action.Builder(null,"Disconnect",disconnect).build()).build()
     }
     override fun onBind(intent: Intent?): IBinder? = null
-    override fun onDestroy() { scope.cancel(); super.onDestroy() }
+    override fun onDestroy() { connection.voice.stop(); scope.cancel(); super.onDestroy() }
     companion object {
         private const val CHANNEL = "flipper_connection"
         private const val ID = 1

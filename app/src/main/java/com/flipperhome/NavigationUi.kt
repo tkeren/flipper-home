@@ -17,7 +17,7 @@ import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Job
 
-@Composable internal fun BoxScope.PlaybackOverlay(status: String?,stopAutomation: (() -> Unit)?) {
+@Composable internal fun BoxScope.PlaybackOverlay(status: String?,stopAutomation: (() -> Unit)?, stopLabel: String = "Stop automation") {
     if(status == null && stopAutomation == null) return
     // Playback feedback is a sibling of the scroll content, so showing it cannot move controls.
     Surface(Modifier.align(Alignment.BottomCenter).padding(16.dp).fillMaxWidth(),
@@ -25,7 +25,7 @@ import kotlinx.coroutines.Job
         Row(Modifier.padding(start = 16.dp,end = 8.dp,top = 4.dp,bottom = 4.dp).heightIn(min = 48.dp),
             verticalAlignment = Alignment.CenterVertically,horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(status ?: "Automation running",Modifier.weight(1f),style = MaterialTheme.typography.bodySmall,color = Green)
-            if(stopAutomation != null) TextButton(onClick = stopAutomation) { Text("Stop automation") }
+            if(stopAutomation != null) TextButton(onClick = stopAutomation) { Text(stopLabel) }
         }
     }
 }
@@ -42,7 +42,7 @@ import kotlinx.coroutines.Job
 }
 
 @Composable internal fun AppHeader(title: String,back: (() -> Unit)?,connected: Boolean,connecting: Boolean,connect: () -> Unit,
-    add: (() -> Unit)?,addLabel: String,signals: () -> Unit,appearance: () -> Unit,rename: (() -> Unit)?,delete: (() -> Unit)?,importSignal: (() -> Unit)?,
+    add: (() -> Unit)?,addLabel: String,signals: () -> Unit,appearance: () -> Unit,rename: (() -> Unit)?,delete: (() -> Unit)?,importSignal: (() -> Unit)?,voice: () -> Unit,
 ) {
     var menu by remember { mutableStateOf(false) }
     Column(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp)) {
@@ -57,6 +57,7 @@ import kotlinx.coroutines.Job
                     if(importSignal != null) DropdownMenuItem(text = { Text("Import signal") },onClick = { menu = false; importSignal() },leadingIcon = { Icon(Icons.Rounded.FileDownload,null) })
                     DropdownMenuItem(text = { Text("Saved signals") },onClick = { menu = false; signals() },leadingIcon = { Icon(Icons.Rounded.GraphicEq,null) })
                     DropdownMenuItem(text = { Text("Appearance") },onClick = { menu = false; appearance() },leadingIcon = { Icon(Icons.Rounded.DarkMode,null) })
+                    DropdownMenuItem(text = { Text("Voice control") },onClick = { menu = false; voice() },leadingIcon = { Icon(Icons.Rounded.Mic,null) })
                     if(delete != null) { HorizontalDivider(); DropdownMenuItem(text = { Text("Delete room",color = MaterialTheme.colorScheme.error) },onClick = { menu = false; delete() },leadingIcon = { Icon(Icons.Rounded.DeleteOutline,null) }) }
                 }
             }

@@ -37,7 +37,7 @@ fun Home.replaceSignal(signal: RemoteButton): Home {
     val kind = requireNotNull(RemoteKind.forFile(signal.path)) { "Choose a saved .ir or .sub file" }
     require(kind != RemoteKind.INFRARED || signal.signal.isNotBlank()) { "Choose an infrared signal" }
     require(signal.holdMs in 100..10000) { "Press length must be between 100 and 10000 ms" }
-    return copy(buttons = buttons.map { if(it.id == signal.id) signal else it }, remotes = remotes.map { r -> r.copy(controls = r.controls.map { c ->
+    return copy(buttons = buttons.map { if(it.id == signal.id) signal.copy(voiceName = old.voiceName, voiceHoldMs = old.voiceHoldMs) else it }, remotes = remotes.map { r -> r.copy(controls = r.controls.map { c ->
         if(c.bindings[ControlZone.MAIN] == old.id && c.label == old.name) c.copy(label = signal.name) else c
     }) })
 }

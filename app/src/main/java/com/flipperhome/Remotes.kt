@@ -89,7 +89,9 @@ fun Home.bind(remoteId: String, controlId: String, zone: ControlZone, captured: 
     val remote = remotes.first { it.id == remoteId }
     val control = remote.controls.first { it.id == controlId }
     val previous = control.bindings[zone]?.takeUnless { id -> buttons.firstOrNull { it.id == id }?.isTv == true }
+    val old = buttons.firstOrNull { it.id == previous }
     val command = captured.copy(id = previous ?: captured.id, remoteId = remoteId, room = remote.room, device = remote.name,
+        voiceName = old?.voiceName.orEmpty(), voiceHoldMs = old?.voiceHoldMs,
         name = if(zone == ControlZone.MAIN) control.label.ifBlank { control.shape.label } else "${control.label.ifBlank { control.shape.label }} ${zone.label}")
     return copy(buttons = buttons.filterNot { it.id == command.id } + command).withRemote(remote.copy(controls = remote.controls.map {
         if(it.id == controlId) it.copy(bindings = it.bindings + (zone to command.id), routines = it.routines - zone,automationZones = it.automationZones - zone) else it

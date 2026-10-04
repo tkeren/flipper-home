@@ -1,6 +1,6 @@
 # Architecture
 
-The Kotlin/Compose app has no backend. `HomeApp` coordinates rooms, remotes, Favorites, mapping and manual automations. `HomeStore` keeps a versioned JSON model in private preferences; schema 6 adds network devices/commands with defaults for older data.
+The Kotlin/Compose app has no hosted backend. `HomeApp` coordinates rooms, remotes, Favorites, mapping and manual automations. `HomeStore` keeps a versioned JSON model in private preferences; schema 7 adds opt-in voice names/durations to signals with disabled defaults for older data.
 
 Layout controls reference saved action or automation IDs. Rocker/pad parts can hold separate bindings. `UniversalSender` routes each action to its own Flipper or TV transport. Automation steps preserve action order and optional per-occurrence hold duration; relearning keeps references stable.
 
@@ -8,7 +8,7 @@ Layout controls reference saved action or automation IDs. Rocker/pad parts can h
 
 `FlipperConnection`/`FlipperLink` provide authenticated Android GATT and length-prefixed protobuf RPC, negotiate MTU, obey receive-buffer credits, serialize operations, reassemble replies and check response statuses. Playback uses a start/load/press/release/exit firmware-app lifecycle per action. Cancellation attempts release/app exit. Infrared taps use named one-shot commands; holds use PRESS/RELEASE. Sub-GHz taps have a configured duration.
 
-Application-owned BLE and a connected-device foreground service retain the connection across activity changes. A bounded reconnect attempt runs on reopen; explicit disconnect suppresses it. Active playback stops when the UI goes into the background even if BLE remains connected.
+Application-owned BLE and a connected-device foreground service retain the connection across activity changes. A bounded reconnect attempt runs on reopen; explicit disconnect suppresses it. Manual playback stops when the UI goes into the background even if BLE remains connected. Explicitly enabled voice actions use the application/service scope and can run with the UI closed.
 
 Capture verifies/installs the bundled FAP and launches it over RPC. A random correlation token derives a companion-owned SD-card path; unrelated replies are rejected and saved-file bytes are read back before preview. The companion exits before normal firmware playback. FAP source/build instructions and its exact SDK are in `flipper_capture`.
 
@@ -21,3 +21,9 @@ An Android Keystore RSA client key provides mutual TLS. During explicit pairing,
 `TvConnection` maintains sockets, answers protocol pings, reconnects and sends SHORT or START_LONG/END_LONG key events. Cancellation releases held keys; input already released during startup does not transmit later. Microphone/IME features are not advertised.
 
 JVM tests check models, references, wire fixtures, routing, timing/cancellation and pairing proof. Native tests use real Android Keystore/Conscrypt against a localhost TLS fixture and isolated persistence. CI performs software checks, not physical-device acceptance.
+
+## Optional Home Assistant voice bridge
+
+`VoiceBridge` connects to Home Assistant's HTTPS-authenticated WebSocket API using OkHttp. `VoiceSettings` encrypts the user's token with Android Keystore AES-GCM. Only selected Flipper action IDs, names and room labels leave the phone; paths and signal contents are resolved locally. Phone-side execution checks timestamps, duplicates, opt-in status, live BLE and manual playback availability before acquiring the Flipper operation lock. A bounded wake lock covers transmission. Disconnect/cancellation attempts the normal release/exit cleanup.
+
+The `custom_components/flipper_home` integration registers authenticated WebSocket commands and creates button entities. Phone records are bound to the authenticated Home Assistant user and active socket. Heartbeats expire availability after 45 seconds; requests wait for an explicit completion/failure acknowledgment and never queue or retry transmission. Metadata persists without tokens/sockets. Google Assistant exposure uses Home Assistant's existing button-to-scene support, with routines for custom phrases. Setup is documented in [voice-control.md](voice-control.md).

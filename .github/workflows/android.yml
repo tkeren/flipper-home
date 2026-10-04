@@ -14,6 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  voice-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test Home Assistant bridge
+        run: |
+          pip install homeassistant==2024.12.5
+          python -m unittest discover -s tests -v
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 30

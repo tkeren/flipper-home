@@ -7,9 +7,13 @@ Flipper Home is independent software, not endorsed by Flipper Devices or Google.
 - AndroidX / Jetpack Compose / Material: https://android.googlesource.com/platform/frameworks/support/ — Apache License 2.0.
 - Kotlin / kotlinx.coroutines: https://github.com/JetBrains/kotlin and https://github.com/Kotlin/kotlinx.coroutines — Apache License 2.0.
 - JUnit 4 (tests): https://github.com/junit-team/junit4 — Eclipse Public License 1.0.
+- OkHttp / MockWebServer (tests): https://github.com/square/okhttp — Apache License 2.0.
+- JSON-java (JVM tests): https://github.com/stleary/JSON-java — public domain declaration.
 - Gradle wrapper/build tooling: https://github.com/gradle/gradle — Apache License 2.0. Android/JetBrains SDKs and tooling retain their respective terms.
 
 Versions are in the Gradle build/wrapper files. Dependency notices packaged with components remain applicable to the APK.
+
+The optional custom integration uses your installed Home Assistant APIs: https://github.com/home-assistant/core — Apache License 2.0. Home Assistant and Google services are not bundled with the APK.
 
 ## Protocol references
 

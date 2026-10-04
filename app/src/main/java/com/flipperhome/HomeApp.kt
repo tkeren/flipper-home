@@ -32,7 +32,13 @@ import kotlinx.coroutines.*
     var editRoom by remember { mutableStateOf<Room?>(null) }
     var removeRoom by remember { mutableStateOf<Room?>(null) }
     var editShortcuts by remember { mutableStateOf(false) }
-    var busy by remember { mutableStateOf(false) }
+    var manualBusyUi by remember { mutableStateOf(false) }
+    val voice = connection.voice
+    val voiceBusy by voice.busy.collectAsState()
+    val voiceName by voice.activeName.collectAsState()
+    val busy = manualBusyUi || voiceBusy
+    fun setBusy(value: Boolean) { manualBusyUi = value; connection.manualBusy.value = value }
+    var voiceOpen by remember { mutableStateOf(false) }
     var heldJob by remember { mutableStateOf<Job?>(null) }
     var heldStatus by remember { mutableStateOf<String?>(null) }
     var sequenceJob by remember { mutableStateOf<Job?>(null) }
@@ -64,13 +70,13 @@ import kotlinx.coroutines.*
     LaunchedEffect(connected) { if(!connected) { if(heldUsesFlipper) heldJob?.cancel(); if(sequenceUsesFlipper) sequenceJob?.cancel() } }
     val sender = UniversalSender({ button,release,duration,started -> link.transmit(button,release,duration,started) },
         { button,release,duration,started -> tv.transmit(home.tvDevices.firstOrNull { it.id == button.tvId } ?: error("Choose a Chromecast first"),button.tvKey,release,duration,started) })
-    fun update(next: Home) { store.save(next); home = next }
+    fun update(next: Home) { store.save(next); home = next; voice.updateActions() }
     fun safely(next: Home) { try { update(next) } catch(e: Exception) { scope.launch { snackbar.showSnackbar(e.message ?: "Save failed") } } }
     fun action(block: suspend () -> Unit): Job? {
         if(busy) return null
-        busy = true
+        setBusy(true)
         return scope.launch {
-            val failure = try { block(); null } catch(e: CancellationException) { throw e } catch(e: Exception) { e.message ?: "Action failed" } finally { busy = false }
+            val failure = try { block(); null } catch(e: CancellationException) { throw e } catch(e: Exception) { e.message ?: "Action failed" } finally { setBusy(false) }
             if(failure != null) snackbar.showSnackbar(failure)
         }
     }
@@ -83,11 +89,11 @@ import kotlinx.coroutines.*
         if(busy) return null
         if(!home.canUse(button,connected)) { if(button.isTv) tvSetup = button.tvId; return null }
         heldUsesFlipper = !button.isTv
-        busy = true; heldStatus = "Starting ${button.name}…"
+        setBusy(true); heldStatus = "Starting ${button.name}…"
         return scope.launch {
             val failure = try { sender.transmit(button,release,started = { heldStatus = "Sending ${button.name}" }); null }
             catch(e: CancellationException) { throw e } catch(e: Exception) { e.message ?: "Send failed" }
-            finally { busy = false; heldStatus = null; heldJob = null; heldUsesFlipper = false }
+            finally { setBusy(false); heldStatus = null; heldJob = null; heldUsesFlipper = false }
             if(failure != null) snackbar.showSnackbar(failure)
         }.also { heldJob = it }
     }
@@ -105,6 +111,7 @@ import kotlinx.coroutines.*
     fun openRemote(remote: Remote) { remoteId = remote.id }
     fun openSignals(remote: String? = null) { signalsRemote = remote; signalsOpen = true }
     if(connectionOpen) ConnectionSheet(connection,{ connectionOpen = false },permission)
+    if(voiceOpen) VoiceSettingsSheet(voice) { voiceOpen = false }
     home.tvDevices.firstOrNull { it.id == tvSetup }?.let { device -> TvSetupSheet(device,tv,{ tvSetup = null }) { updated ->
         update(home.copy(tvDevices = home.tvDevices.map { if(it.id == updated.id) updated else it }))
     } }
@@ -121,7 +128,7 @@ import kotlinx.coroutines.*
     val remote = home.remotes.firstOrNull { it.id == remoteId }
     if(remote != null) {
         RemotePage(remote,home,link,busy,snackbar,{ remoteId = null },{ update(home.withRemote(it)) },
-            { control, zone, button -> update(home.bind(remote.id,control,zone,button)) },::send,::hold,heldStatus,::pin,{
+            { control, zone, button -> update(home.bind(remote.id,control,zone,button)) },::send,::hold,heldStatus ?: voiceName?.let { "Voice · $it" },::pin,{
                 val removed = home.buttons.filter { it.remoteId == remote.id }.map { it.id }
                 val cleaned = removed.fold(home) { current, id -> current.deleteSignal(id) }
                 update(cleaned.copy(remotes = cleaned.remotes.filterNot { it.id == remote.id },shortcuts = cleaned.shortcuts.filterNot { it == Shortcut(ShortcutKind.REMOTE,remote.id) }))
@@ -129,10 +136,10 @@ import kotlinx.coroutines.*
             },manageSignals = { openSignals(remote.id) },saveAutomation = { layout,control,zone,scene ->
                 val next = home.withAutomation(layout,control,zone,scene); update(next); next.remotes.first { it.id == layout.id }
             },
-            runAutomation = ::run,stopAutomation = if(sequenceJob?.isActive == true) ({ sequenceJob?.cancel() }) else null,
+            runAutomation = ::run,stopAutomation = if(voiceBusy) ({ voice.cancelCommand() }) else if(sequenceJob?.isActive == true) ({ sequenceJob?.cancel() }) else null,
             openConnection = ::openConnection,tv = tv,openTv = { tvSetup = it },saveTvAction = { layout,control,zone,device,key ->
                 val next = home.bindTv(layout,control,zone,device,key); update(next); next.remotes.first { it.id == layout.id }
-            })
+            },voice = voice,saveVoice = ::update,openVoice = { voiceOpen = true },stopLabel = if(voiceBusy) "Stop command" else "Stop automation")
         return
     }
     val room = home.rooms.firstOrNull { it.id == roomId }
@@ -145,7 +152,7 @@ import kotlinx.coroutines.*
             addLabel = if(tab == 2) "Add automation" else if(room == null) "Add room" else "Add remote",signals = { openSignals() },
             appearance = { dialog = "appearance" },rename = if(room != null && tab == 0) ({ editRoom = room; dialog = "room" }) else null,
             delete = if(room != null && tab == 0) ({ removeRoom = room }) else null,
-            importSignal = if(room != null && tab == 0) ({ dialog = "button" }) else null)
+            importSignal = if(room != null && tab == 0) ({ dialog = "button" }) else null,voice = { voiceOpen = true })
     },bottomBar = {
         NavigationBar(containerColor = MaterialTheme.colorScheme.background,tonalElevation = 0.dp) {
             listOf("Rooms" to Icons.Rounded.MeetingRoom,"Favorites" to Icons.Rounded.StarBorder,"Automations" to Icons.Rounded.AutoAwesome).forEachIndexed { index,pair ->
@@ -189,7 +196,7 @@ import kotlinx.coroutines.*
             }
         }
         if(busy) LinearProgressIndicator(Modifier.fillMaxWidth().align(androidx.compose.ui.Alignment.TopCenter))
-        PlaybackOverlay(heldStatus,if(sequenceJob?.isActive == true) ({ sequenceJob?.cancel(); Unit }) else null)
+        PlaybackOverlay(heldStatus ?: voiceName?.let { "Voice · $it" },if(voiceBusy) ({ voice.cancelCommand() }) else if(sequenceJob?.isActive == true) ({ sequenceJob?.cancel(); Unit }) else null,if(voiceBusy) "Stop command" else "Stop automation")
         }
     }
     when(dialog) {

@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.MutableStateFlow
 
 class FlipperHomeApplication : Application() {
     internal val connection by lazy { FlipperConnection(this) }
@@ -20,6 +21,8 @@ class FlipperHomeApplication : Application() {
 internal class FlipperConnection(private val context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     val link = FlipperLink(context.applicationContext,scope)
+    val manualBusy = MutableStateFlow(false)
+    val voice by lazy { VoiceBridge(context.applicationContext, scope, link.connected, { manualBusy.value }, { button, duration -> link.voiceTransmit(button, duration) }) }
     private val prefs = context.getSharedPreferences("connection",Context.MODE_PRIVATE)
     private var keepingAlive = false
     private var starting = false
@@ -74,6 +77,7 @@ internal class FlipperConnection(private val context: Context) {
         }
     }
     fun onOpen() {
+        voice.resume()
         if(link.connected.value || link.connecting.value) {
             if(canConnect()) runCatching { keepAlive() }.onFailure { Log.w("FlipperHomeBLE","Could not keep connection service active",it) }
         } else reconnect.onOpen()
@@ -90,6 +94,7 @@ internal class FlipperConnection(private val context: Context) {
         } finally { starting = false; stopIfIdle() }
     }
     fun disconnect() {
+        voice.stop()
         prefs.edit().putBoolean("autoReconnect",false).apply()
         ++scanGeneration; starting = false; reconnect.cancel(); link.disconnect(); stopIfIdle()
     }

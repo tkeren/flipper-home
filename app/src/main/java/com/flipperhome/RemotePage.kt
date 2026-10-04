@@ -46,6 +46,7 @@ internal fun RemotePage(remote: Remote, home: Home, link: FlipperLink, busy: Boo
     stopAutomation: (() -> Unit)? = null,
     openConnection: () -> Unit = {},
     tv: TvConnection,openTv: (String) -> Unit,saveTvAction: (Remote,String,ControlZone,TvDevice,TvKey) -> Remote,
+    voice: VoiceBridge, saveVoice: (Home) -> Unit, openVoice: () -> Unit, stopLabel: String = "Stop automation",
 ) {
     var draft by remember(remote.id) { mutableStateOf(remote) }
     var editing by remember(remote.id) { mutableStateOf(false) }
@@ -64,6 +65,7 @@ internal fun RemotePage(remote: Remote, home: Home, link: FlipperLink, busy: Boo
     var favorites by remember { mutableStateOf(false) }
     var tvAction by remember { mutableStateOf<Pair<String,ControlZone>?>(null) }
     var newTvButton by remember { mutableStateOf<String?>(null) }
+    var voiceTarget by remember { mutableStateOf<String?>(null) }
     val connected by link.connected.collectAsState()
     val connecting by link.connecting.collectAsState()
     val tvStates by tv.states.collectAsState()
@@ -93,6 +95,7 @@ internal fun RemotePage(remote: Remote, home: Home, link: FlipperLink, busy: Boo
                         DropdownMenuItem(text = { Text(if(Shortcut(ShortcutKind.REMOTE,remote.id) in home.shortcuts) "Remove from Favorites" else "Add to Favorites") },onClick = { menu = false; pin(Shortcut(ShortcutKind.REMOTE,remote.id)) })
                         DropdownMenuItem(text = { Text("Remote settings") },onClick = { menu = false; settings = true })
                         DropdownMenuItem(text = { Text("Connect Flipper") },onClick = { menu = false; openConnection() })
+                        DropdownMenuItem(text = { Text("Voice control") },onClick = { menu = false; openVoice() })
                         tvIds.forEach { id -> DropdownMenuItem(text = { Text("Connect ${home.tvDevices.firstOrNull { it.id == id }?.name ?: "Chromecast"}") },onClick = { menu = false; openTv(id) }) }
                     }
                 }
@@ -132,7 +135,7 @@ internal fun RemotePage(remote: Remote, home: Home, link: FlipperLink, busy: Boo
 
             }
         }
-        PlaybackOverlay(heldStatus,stopAutomation)
+        PlaybackOverlay(heldStatus,stopAutomation,stopLabel)
         }
     }
                 if(editing && customizing && control != null) ModalBottomSheet(onDismissRequest = { customizing = false },containerColor = MaterialTheme.colorScheme.surfaceContainerLow) {
@@ -171,11 +174,13 @@ internal fun RemotePage(remote: Remote, home: Home, link: FlipperLink, busy: Boo
                             if(routine == null && zone !in control.automationZones) TextButton(onClick = { customizing = false; chooseAutomation = control.id to zone }) { Text("Use an automation") }
                             if(home.tvDevices.isNotEmpty()) TextButton(enabled = !busy,onClick = { customizing = false; tvAction = control.id to zone }) { Text("Choose Google TV command") }
                             if(button?.isTv == true) TextButton(enabled = !busy,onClick = { commit { learn = control.id to zone } }) { Text("Replace with Flipper signal") }
+                            if(button != null && !button.isTv) TextButton(onClick = { commit { customizing = false; voiceTarget = button.id } }) { Text(if(button.voiceName.isBlank()) "Set up voice command" else "Edit voice command") }
                         }
                         TextButton(onClick = { draft = draft.copy(controls = draft.controls.filterNot { it.id == control.id }); selected = draft.controls.firstOrNull()?.id; customizing = false }) { Text("Remove from layout") }
                     }
                 }
     if(discard) AlertDialog(onDismissRequest = { discard = false }, title = { Text("Discard layout changes?") }, confirmButton = { TextButton(onClick = back) { Text("Discard") } }, dismissButton = { TextButton(onClick = { discard = false }) { Text("Keep editing") } })
+    home.buttons.firstOrNull { it.id == voiceTarget }?.let { button -> VoiceButtonSheet(button, home, voice, { voiceTarget = null }, saveVoice) }
     if(adding) AlertDialog(onDismissRequest = { adding = false },title = { Text("Add a button") },text = { Column {
         Button(onClick = { val c = RemoteControl(label = "Button ${draft.controls.size+1}",y = .45f); draft = draft.copy(controls = draft.controls + c); selected = c.id; customizing = true; adding = false },modifier = Modifier.fillMaxWidth()) { Text("Flipper signal") }
         if(home.tvDevices.isNotEmpty()) OutlinedButton(onClick = { val c = RemoteControl(label = "TV button",y = .45f); draft = draft.copy(controls = draft.controls + c); selected = c.id; newTvButton = c.id; tvAction = c.id to ControlZone.MAIN; adding = false },modifier = Modifier.fillMaxWidth()) { Text("Google TV command") }

@@ -1,0 +1,13 @@
+{
+  "domain": "flipper_home",
+  "name": "Flipper Home",
+  "version": "0.2.0",
+  "config_flow": true,
+  "documentation": "https://github.com/tkeren/flipper-home/blob/main/docs/voice-control.md",
+  "issue_tracker": "https://github.com/tkeren/flipper-home/issues",
+  "dependencies": ["websocket_api"],
+  "iot_class": "local_push",
+  "integration_type": "hub",
+  "codeowners": [],
+  "requirements": []
+}

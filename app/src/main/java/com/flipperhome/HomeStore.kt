@@ -7,7 +7,7 @@ import java.util.UUID
 
 data class Room(val id: String = UUID.randomUUID().toString(), val name: String)
 data class RemoteButton(val id: String = UUID.randomUUID().toString(), val room: String, val device: String, val name: String, val path: String, val signal: String, val holdMs: Long = 500, val remoteId: String = "",
-    val tvId: String = "",val tvKey: Int = 0)
+    val tvId: String = "",val tvKey: Int = 0, val voiceName: String = "", val voiceHoldMs: Long? = null)
 data class AutomationStep(val signalId: String, val holdMs: Long? = null)
 const val DEFAULT_ACTION_DELAY_MS = 200L
 data class Scene(val id: String = UUID.randomUUID().toString(), val name: String, val buttons: List<String>, val delayMs: Long = DEFAULT_ACTION_DELAY_MS,
@@ -29,7 +29,7 @@ class HomeStore(context: Context) {
         val json = JSONObject(text)
         fun array(key: String) = (json.optJSONArray(key) ?: JSONArray()).let { a -> (0 until a.length()).map { a.getJSONObject(it) } }
         return Home(array("rooms").map { Room(it.getString("id"), it.getString("name")) },
-            array("buttons").map { RemoteButton(it.getString("id"), it.getString("room"), it.getString("device"), it.getString("name"), it.getString("path"), it.getString("signal"), it.optLong("holdMs", 500), it.optString("remoteId"),it.optString("tvId"),it.optInt("tvKey")) },
+            array("buttons").map { RemoteButton(it.getString("id"), it.getString("room"), it.getString("device"), it.getString("name"), it.getString("path"), it.getString("signal"), it.optLong("holdMs", 500), it.optString("remoteId"),it.optString("tvId"),it.optInt("tvKey"),it.optString("voiceName"), if(it.isNull("voiceHoldMs")) null else it.optLong("voiceHoldMs")) },
             array("scenes").map { j -> Scene(j.getString("id"), j.getString("name"), j.getJSONArray("buttons").let { a -> (0 until a.length()).map { a.getString(it) } }, j.getLong("delay"),
                 j.optJSONArray("holdsMs")?.let { a -> (0 until a.length()).map { if(a.isNull(it)) null else a.getLong(it) } } ?: emptyList()) },
             array("remotes").map { j ->
@@ -52,10 +52,10 @@ class HomeStore(context: Context) {
     fun save(home: Home) {
         val json = JSONObject()
             .put("rooms", JSONArray(home.rooms.map { JSONObject().put("id", it.id).put("name", it.name) }))
-            .put("buttons", JSONArray(home.buttons.map { JSONObject().put("id", it.id).put("room", it.room).put("device", it.device).put("name", it.name).put("path", it.path).put("signal", it.signal).put("holdMs", it.holdMs).put("remoteId", it.remoteId).put("tvId",it.tvId).put("tvKey",it.tvKey) }))
+            .put("buttons", JSONArray(home.buttons.map { JSONObject().put("id", it.id).put("room", it.room).put("device", it.device).put("name", it.name).put("path", it.path).put("signal", it.signal).put("holdMs", it.holdMs).put("remoteId", it.remoteId).put("tvId",it.tvId).put("tvKey",it.tvKey).put("voiceName",it.voiceName).put("voiceHoldMs",it.voiceHoldMs ?: JSONObject.NULL) }))
             .put("scenes", JSONArray(home.scenes.map { JSONObject().put("id", it.id).put("name", it.name).put("buttons", JSONArray(it.buttons)).put("delay", it.delayMs)
                 .put("holdsMs", JSONArray(it.steps.map { step -> step.holdMs ?: JSONObject.NULL })) }))
-            .put("schema", 6)
+            .put("schema", 7)
             .put("tvDevices",JSONArray(home.tvDevices.map { JSONObject().put("id",it.id).put("name",it.name).put("host",it.host).put("port",it.port) }))
             .put("remotes", JSONArray(home.remotes.map { r -> JSONObject().put("id", r.id).put("room", r.room).put("name", r.name).put("category", r.category.name).put("kind", r.kind.name)
                 .put("frequency", r.frequency).put("preset", r.preset.name).put("canvasHeight", r.canvasHeight).put("snap", r.snap).put("tvId",r.tvId).put("controls", JSONArray(r.controls.map { c ->
