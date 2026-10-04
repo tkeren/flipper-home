@@ -1,0 +1,11 @@
+App(
+    appid="flipper_home_capture",
+    name="Flipper Home Capture",
+    apptype=FlipperAppType.EXTERNAL,
+    entry_point="flipper_home_capture_app",
+    requires=["gui", "rpc", "storage"],
+    stack_size=4096,
+    fap_category="Tools",
+    fap_version=(1, 0),
+    fap_description="Receive remote buttons from the Flipper Home phone wizard",
+)
