@@ -4,7 +4,7 @@ import kotlinx.coroutines.CancellationException
 import java.net.URI
 
 data class VoiceAction(val id: String, val name: String, val room: String)
-data class VoiceRequest(val id: String, val actionId: String, val issuedAtMs: Long)
+data class VoiceRequest(val id: String, val actionId: String, val issuedAtMs: Long, val cancel: Boolean = false)
 data class VoiceResult(val success: Boolean, val message: String = "")
 
 fun Home.withVoice(id: String, name: String, duration: Long?): Home {
@@ -27,10 +27,12 @@ internal class VoiceExecutor(
     private val connected: () -> Boolean,
     private val unavailable: () -> Boolean,
     private val clock: () -> Long = System::currentTimeMillis,
+    private val maxDurationMs: Long = 60000,
     private val transmit: suspend (RemoteButton, Long?) -> Unit,
 ) {
     private val seen = LinkedHashSet<String>()
     suspend fun execute(request: VoiceRequest): VoiceResult {
+        if(request.cancel) return VoiceResult(false, "Cancellation is handled by the voice connection")
         if(!request.id.matches(Regex("[A-Za-z0-9_-]{1,80}"))) return VoiceResult(false, "Invalid request")
         if(!seen.add(request.id)) return VoiceResult(false, "Duplicate request")
         if(seen.size > 256) seen.remove(seen.first())
@@ -40,7 +42,7 @@ internal class VoiceExecutor(
         if(unavailable()) return VoiceResult(false, "Flipper is busy")
         val button = home().buttons.firstOrNull { it.id == request.actionId && it.voiceName.isNotBlank() && !it.isTv }
             ?: return VoiceResult(false, "Voice control is disabled for this button")
-        if(RemoteKind.forFile(button.path) == null || (button.voiceHoldMs != null && button.voiceHoldMs !in 100..60000))
+        if(RemoteKind.forFile(button.path) == null || (button.voiceHoldMs != null && button.voiceHoldMs !in 100..maxDurationMs))
             return VoiceResult(false, "Check this signal in Flipper Home")
         return try { transmit(button, button.voiceHoldMs); VoiceResult(true) }
         catch(e: CancellationException) { throw e }
@@ -49,10 +51,14 @@ internal class VoiceExecutor(
 }
 
 internal fun homeAssistantSocketUrl(value: String): String {
-    val uri = try { URI(value.trim().trimEnd('/')) } catch(e: Exception) { error("Enter your Home Assistant URL") }
+    return voiceSocketUrl(value, VoiceProvider.HOME_ASSISTANT)
+}
+internal fun voiceSocketUrl(value: String, provider: VoiceProvider): String {
+    val uri = try { URI(value.trim().trimEnd('/')) } catch(e: Exception) { error("Enter your voice server URL") }
     require(uri.scheme == "https" && !uri.host.isNullOrBlank() && uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null) {
-        "Use your HTTPS Home Assistant URL"
+        "Use your HTTPS voice server URL"
     }
-    require(uri.port == -1 || uri.port in 1..65535) { "Check the Home Assistant port" }
-    return URI("wss", null, uri.host, uri.port, uri.path.trimEnd('/') + "/api/websocket", null, null).toString()
+    require(uri.port == -1 || uri.port in 1..65535) { "Check the server port" }
+    val path = if(provider == VoiceProvider.GOOGLE_HOME) "/api/phone/ws" else "/api/websocket"
+    return URI("wss", null, uri.host, uri.port, uri.path.trimEnd('/') + path, null, null).toString()
 }

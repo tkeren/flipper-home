@@ -35,6 +35,7 @@ internal class VoiceBridge(
     private var connectionJob: Job? = null
     private var activeJob: Job? = null
     private var activeActionId: String? = null
+    private var activeRequestId: String? = null
     private var socket: WebSocket? = null
     private var protocol: VoiceProtocol? = null
     private var revision = 0
@@ -49,18 +50,18 @@ internal class VoiceBridge(
     fun resume() {
         if(!config.enabled) { status.value = VoiceStatus(); return }
         if(!connected.value) { status.value = VoiceStatus(message = "Connect Flipper to enable voice control"); return }
-        if(config.token.isBlank()) { status.value = VoiceStatus(message = "Enter your Home Assistant token again"); return }
+        if(config.token.isBlank()) { status.value = VoiceStatus(message = "Connect your ${config.provider.label} again"); return }
         if(connectionJob?.isActive == true) return
         val owner = ++revision
         connectionJob = scope.launch {
             var retrySeconds = 2L
             while(isActive && owner == revision && connected.value && config.enabled) {
-                status.value = VoiceStatus(message = "Connecting to Home Assistant…")
+                status.value = VoiceStatus(message = "Connecting to ${config.provider.label}…")
                 val failure = runCatching { session(owner) }.exceptionOrNull()
                 if(failure is CancellationException) throw failure
                 if(owner != revision || !connected.value) break
                 if(failure is VoiceSetupException) { status.value = VoiceStatus(message = failure.message.orEmpty()); break }
-                status.value = VoiceStatus(message = "Home Assistant disconnected · retrying in ${retrySeconds}s")
+                status.value = VoiceStatus(message = "${config.provider.label} disconnected · retrying in ${retrySeconds}s")
                 delay(retrySeconds * 1000)
                 retrySeconds = (retrySeconds * 2).coerceAtMost(60)
             }
@@ -83,9 +84,9 @@ internal class VoiceBridge(
 
     private suspend fun session(owner: Int) = coroutineScope {
         val messages = Channel<String>(32)
-        val current = VoiceProtocol(config.bridgeId, "${Build.MODEL} · Flipper Home".take(80))
+        val current = VoiceProtocol(config.bridgeId, "${Build.MODEL} · Flipper Home".take(80), config.provider)
         val token = config.token
-        val ws = client.newWebSocket(Request.Builder().url(homeAssistantSocketUrl(config.url)).build(), object : WebSocketListener() {
+        val ws = client.newWebSocket(Request.Builder().url(voiceSocketUrl(config.url, config.provider)).build(), object : WebSocketListener() {
             override fun onMessage(webSocket: WebSocket, text: String) {
                 if(text.length > 256_000 || messages.trySend(text).isFailure) {
                     messages.close(IllegalStateException("Home Assistant message stream overflow")); webSocket.cancel()
@@ -97,6 +98,7 @@ internal class VoiceBridge(
         })
         socket = ws; protocol = current
         val executor = VoiceExecutor({ store.load() }, { connected.value }, manualBusy,
+            maxDurationMs = if(config.provider == VoiceProvider.GOOGLE_HOME) 5000 else 60000,
             transmit = { button, duration ->
                 val wake = context.getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "FlipperHome:voice")
                 wake.acquire(90000)
@@ -119,16 +121,18 @@ internal class VoiceBridge(
                 }
                 if(current.ready) { handshake.cancel(); status.value = VoiceStatus(true, "Voice control connected") }
                 if(command != null) {
+                    if(command.cancel) { if(activeRequestId == command.id) activeJob?.cancel(); continue }
                     if(busy.value || manualBusy()) ws.send(current.result(command, VoiceResult(false, "Flipper is busy")))
                     else {
                         busy.value = true
                         activeActionId = command.actionId
+                        activeRequestId = command.id
                         activeName.value = store.load().voiceActions.firstOrNull { it.id == command.actionId }?.name
                         activeJob = scope.launch {
                             val result = try { executor.execute(command) }
                             catch(e: CancellationException) { VoiceResult(false, "Command stopped") }
                             catch(e: Exception) { VoiceResult(false, "Signal could not be sent") }
-                            finally { busy.value = false; activeName.value = null; activeJob = null; activeActionId = null }
+                            finally { busy.value = false; activeName.value = null; activeJob = null; activeActionId = null; activeRequestId = null }
                             if(owner == revision) ws.send(current.result(command, result))
                         }
                     }

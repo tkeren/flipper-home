@@ -28,8 +28,8 @@ class TvChecksInstrumentation : Instrumentation() {
     override fun onStart() {
         val result = Bundle()
         try {
-            runBlocking { withTimeout(75000) { checkPersistence(); checkTlsPlayback(); checkVoiceNative(targetContext) } }
-            result.putString("stream","Native checks passed: TV pairing/playback; voice HTTPS WebSocket, encrypted token, opt-in storage, timed hold, busy/duplicate/unknown rejection, cancellation, disable and disconnect.\n")
+            runBlocking { withTimeout(75000) { checkPersistence(); checkTlsPlayback(); checkVoiceNative(targetContext); checkVoiceNative(targetContext, VoiceProvider.GOOGLE_HOME) } }
+            result.putString("stream","Native checks passed: TV pairing/playback; Home Assistant and direct Google bridge HTTPS sign-in/WebSocket, encrypted credentials, opt-in storage, timed hold, busy/duplicate/unknown rejection, cancellation, reconnect, disable and disconnect.\n")
             finish(Activity.RESULT_OK,result)
         } catch(e: Throwable) {
             result.putString("stream","Google TV native checks FAILED: ${e.stackTraceToString().take(5000)}\n")

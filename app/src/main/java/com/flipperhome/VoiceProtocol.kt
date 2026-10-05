@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /** Home Assistant authentication/registration is complete before accepting commands. */
-internal class VoiceProtocol(private val bridgeId: String, private val phoneName: String) {
+internal class VoiceProtocol(private val bridgeId: String, private val phoneName: String, private val provider: VoiceProvider = VoiceProvider.HOME_ASSISTANT) {
     private var nextId = 1
     private var subscriptionId = 0
     private var registering = false
@@ -17,7 +17,7 @@ internal class VoiceProtocol(private val bridgeId: String, private val phoneName
         val message = JSONObject(text)
         return when(message.optString("type")) {
             "auth_required" -> JSONObject().put("type", "auth").put("access_token", token).toString() to null
-            "auth_invalid" -> { error = "Home Assistant rejected the token"; setupFailure = true; null to null }
+            "auth_invalid" -> { error = if(provider == VoiceProvider.HOME_ASSISTANT) "Home Assistant rejected the token" else "Sign in to your Google Home bridge again"; setupFailure = true; null to null }
             "auth_ok" -> {
                 check(!registering) { "Unexpected authentication response" }
                 registering = true
@@ -36,7 +36,10 @@ internal class VoiceProtocol(private val bridgeId: String, private val phoneName
             }
             "event" -> {
                 if(!ready || message.optInt("id") != subscriptionId) null to null
-                else message.getJSONObject("event").let { data -> null to VoiceRequest(data.getString("request_id"), data.getString("action_id"), data.getLong("issued_at_ms")) }
+                else message.getJSONObject("event").let { data ->
+                    null to if(data.has("cancel_request_id")) VoiceRequest(data.getString("cancel_request_id"), "", 0, cancel = true)
+                        else VoiceRequest(data.getString("request_id"), data.getString("action_id"), data.getLong("issued_at_ms"))
+                }
             }
             else -> null to null
         }

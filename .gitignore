@@ -20,6 +20,9 @@ Thumbs.db
 .env.*
 __pycache__/
 *.pyc
+data/
+*.sqlite3
+*.sqlite3-*
 captures/
 backups/
 flipper_capture/.vscode/

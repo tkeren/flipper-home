@@ -21,7 +21,7 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicReference
 
 /** TLS/WebSocket fixture and fake transmitter; never uses BLE or emits IR/RF. */
-internal suspend fun checkVoiceNative(context: Context) {
+internal suspend fun checkVoiceNative(context: Context, provider: VoiceProvider = VoiceProvider.HOME_ASSISTANT) {
     val suffix = UUID.randomUUID().toString()
     val isolated = object : ContextWrapper(context) {
         override fun getSharedPreferences(name: String, mode: Int): SharedPreferences = context.getSharedPreferences("voice-check-$name-$suffix", mode)
@@ -46,6 +46,7 @@ internal suspend fun checkVoiceNative(context: Context) {
     val results = Channel<JSONObject>(16)
     val updated = Channel<JSONObject>(16)
     val token = "native-test-token-not-a-real-credential"
+    if(provider == VoiceProvider.GOOGLE_HOME) server.enqueue(MockResponse().setBody("{\"access_token\":\"$token\",\"project_id\":\"native-test-project\"}").setHeader("Content-Type", "application/json"))
     val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) { serverSocket.set(webSocket); webSocket.send("{\"type\":\"auth_required\"}") }
         override fun onMessage(webSocket: WebSocket, text: String) {
@@ -67,9 +68,18 @@ internal suspend fun checkVoiceNative(context: Context) {
     }
     server.enqueue(MockResponse().withWebSocketUpgrade(listener))
     withContext(Dispatchers.IO) { server.start(InetAddress.getByName("127.0.0.1"),0) }
+    if(provider == VoiceProvider.GOOGLE_HOME) {
+        check(signInGoogleBridge("https://localhost:${server.port}", "native-test-user", "native-test-password", "phone", client) == token)
+        val login = withContext(Dispatchers.IO) { server.takeRequest() }
+        check(login.path == "/api/phone/login")
+        val credentials = JSONObject(login.body.readUtf8())
+        check(credentials.getString("username") == "native-test-user")
+        check(credentials.getString("password") == "native-test-password")
+    }
     val settings = VoiceSettings(isolated)
-    settings.save("https://localhost:${server.port}",token,true)
+    settings.save("https://localhost:${server.port}",token,true,provider)
     check(settings.load().token == token)
+    check(settings.load().provider == provider)
     check(isolated.getSharedPreferences("voice",0).all.values.none { it.toString().contains(token) }) { "Token was stored in plaintext" }
     val calls = Channel<Pair<String,Long?>>(16)
     val releases = Channel<Unit>(16)
@@ -101,11 +111,17 @@ internal suspend fun checkVoiceNative(context: Context) {
         command("busy")
         check(!results.receive().getBoolean("success")) { "Busy phone accepted a voice command" }
         withContext(Dispatchers.Main) { manualBusy = false }
-        home = home.withVoice("native-lamp","Dim bedroom",60000)
+        val longHold = if(provider == VoiceProvider.GOOGLE_HOME) 5000L else 60000L
+        home = home.withVoice("native-lamp","Dim bedroom",longHold)
         store.save(home)
         command("cancel")
-        check(calls.receive() == ("native-lamp" to 60000L))
-        withContext(Dispatchers.Main) { bridge.cancelCommand() }
+        check(calls.receive() == ("native-lamp" to longHold))
+        if(provider == VoiceProvider.GOOGLE_HOME) {
+            serverSocket.get().send("{\"id\":1,\"type\":\"event\",\"event\":{\"cancel_request_id\":\"unrelated\"}}")
+            delay(40)
+            check(bridge.busy.value) { "Unrelated cancel stopped a command" }
+            serverSocket.get().send("{\"id\":1,\"type\":\"event\",\"event\":{\"cancel_request_id\":\"cancel\"}}")
+        } else withContext(Dispatchers.Main) { bridge.cancelCommand() }
         releases.receive()
         check(!results.receive().getBoolean("success")) { "Cancelled command was reported successful" }
         server.enqueue(MockResponse().withWebSocketUpgrade(listener))

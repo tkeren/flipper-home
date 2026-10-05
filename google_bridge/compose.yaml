@@ -1,0 +1,31 @@
+services:
+  bridge:
+    build:
+      context: ..
+      dockerfile: google_bridge/Dockerfile
+    restart: unless-stopped
+    environment:
+      BRIDGE_PUBLIC_URL: https://${BRIDGE_DOMAIN:?Set BRIDGE_DOMAIN}
+      GOOGLE_PROJECT_ID: ${GOOGLE_PROJECT_ID:?Set GOOGLE_PROJECT_ID}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?Set GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?Set GOOGLE_CLIENT_SECRET}
+    volumes:
+      - bridge-data:/data
+  https:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      BRIDGE_DOMAIN: ${BRIDGE_DOMAIN:?Set BRIDGE_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - bridge
+volumes:
+  bridge-data:
+  caddy-data:
+  caddy-config:

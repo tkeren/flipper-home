@@ -117,4 +117,24 @@ class VoiceTest {
         assertFalse(protocol.setupFailure)
         assertTrue(protocol.error.isNotBlank())
     }
+    @Test fun googleBridgeUsesItsOwnEndpointAndSignInMessage() {
+        assertEquals("wss://bridge.example/api/phone/ws", voiceSocketUrl("https://bridge.example", VoiceProvider.GOOGLE_HOME))
+        val protocol = VoiceProtocol("phone", "Test", VoiceProvider.GOOGLE_HOME)
+        protocol.receive("{\"type\":\"auth_invalid\"}", "token", emptyList())
+        assertEquals("Sign in to your Google Home bridge again", protocol.error)
+    }
+    @Test fun matchingAuthenticatedCancelEventStopsOnlyItsRequest() {
+        val protocol = VoiceProtocol("phone", "Test", VoiceProvider.GOOGLE_HOME)
+        protocol.receive("{\"type\":\"auth_ok\"}","token",emptyList())
+        protocol.receive("{\"id\":1,\"type\":\"result\",\"success\":true}","token",emptyList())
+        val event = "{\"id\":1,\"type\":\"event\",\"event\":{\"cancel_request_id\":\"request\"}}"
+        assertEquals(VoiceRequest("request", "", 0, cancel = true), protocol.receive(event,"token",emptyList()).second)
+        assertNull(protocol.receive(event.replace("\"id\":1", "\"id\":2"), "token", emptyList()).second)
+    }
+    @Test fun switchingToGoogleCannotStartAnOldLongHold() = runBlocking {
+        var calls = 0
+        val executor = VoiceExecutor({home.withVoice("lamp","Dim",60000)},{true},{false},{now},maxDurationMs=5000) { _,_ -> calls++ }
+        assertFalse(executor.execute(VoiceRequest("old-hold","lamp",now)).success)
+        assertEquals(0,calls)
+    }
 }

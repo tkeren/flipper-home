@@ -11,7 +11,8 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
-internal data class VoiceConfig(val enabled: Boolean = false, val url: String = "", val bridgeId: String, val token: String = "")
+internal enum class VoiceProvider(val label: String) { GOOGLE_HOME("Google Home bridge"), HOME_ASSISTANT("Home Assistant") }
+internal data class VoiceConfig(val enabled: Boolean = false, val url: String = "", val bridgeId: String, val token: String = "", val provider: VoiceProvider = VoiceProvider.GOOGLE_HOME)
 
 /** No token is kept in home.json or exported to the Home Assistant action registry. */
 internal class VoiceSettings(context: Context) {
@@ -31,16 +32,19 @@ internal class VoiceSettings(context: Context) {
             Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, 12))) }
                 .doFinal(bytes.copyOfRange(12, bytes.size)).toString(Charsets.UTF_8)
         }.getOrDefault("") }.orEmpty()
-        return VoiceConfig(preferences.getBoolean("enabled", false), preferences.getString("url", "").orEmpty(), bridge, token)
+        val url = preferences.getString("url", "").orEmpty()
+        val provider = VoiceProvider.entries.firstOrNull { it.name == preferences.getString("provider", null) }
+            ?: if(url.isBlank()) VoiceProvider.GOOGLE_HOME else VoiceProvider.HOME_ASSISTANT
+        return VoiceConfig(preferences.getBoolean("enabled", false), url, bridge, token, provider)
     }
-    fun save(url: String, token: String, enabled: Boolean) {
-        homeAssistantSocketUrl(url)
-        require(token.isNotBlank() && token.length <= 8192 && token.none(Char::isWhitespace)) { "Enter a Home Assistant long-lived access token" }
+    fun save(url: String, token: String, enabled: Boolean, provider: VoiceProvider = VoiceProvider.HOME_ASSISTANT) {
+        voiceSocketUrl(url, provider)
+        require(token.isNotBlank() && token.length <= 8192 && token.none(Char::isWhitespace)) { "Enter valid ${provider.label} credentials" }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding").apply { init(Cipher.ENCRYPT_MODE, key()) }
         val encrypted = Base64.encodeToString(cipher.iv + cipher.doFinal(token.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
-        check(preferences.edit().putString("url", url.trim().trimEnd('/')).putString("token", encrypted).putBoolean("enabled", enabled).commit()) { "Could not save Home Assistant settings" }
+        check(preferences.edit().putString("url", url.trim().trimEnd('/')).putString("token", encrypted).putBoolean("enabled", enabled).putString("provider", provider.name).commit()) { "Could not save voice settings" }
     }
     fun enabled(value: Boolean) { check(preferences.edit().putBoolean("enabled", value).commit()) }
-    fun forget() { check(preferences.edit().remove("url").remove("token").putBoolean("enabled", false).commit()) }
+    fun forget() { check(preferences.edit().remove("url").remove("token").remove("provider").putBoolean("enabled", false).commit()) }
     companion object { private const val KEY = "flipper-home-home-assistant-token" }
 }

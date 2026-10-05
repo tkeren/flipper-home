@@ -25,7 +25,7 @@ The initial release is an **early testing build signed with a debug certificate*
 - Press-and-hold transmission for dimming and other continuous commands.
 - Automations combining taps, **0.1–60 second holds** and pauses (**200 ms** by default).
 - Favorites for remotes, buttons and automations; saved-signal editing/relearning with references preserved.
-- Optional **Hey Google** actions for selected Flipper buttons through Home Assistant, including timed dimming holds. [Voice setup](docs/voice-control.md).
+- Optional **Hey Google** actions for selected Flipper buttons from a phone or Nest speakers. Use the included [direct Google Home bridge](docs/google-home.md), or [Home Assistant](docs/voice-control.md) if you already run it. Hosting/project setup is required; direct Google is a developer-test integration.
 
 ## Connect Flipper
 
@@ -80,7 +80,7 @@ Open **⋮ → Saved signals** to test, rename, relearn, delete or change a capt
 | Sub-GHz playback | Compatible `.sub` files; RAW playback unverified |
 | Google TV | Remote v2; native simulated-TV tests passed, physical Chromecast acceptance pending |
 | Automations | Manual sequences; no scheduling/background execution |
-| Hey Google | Opt-in Flipper buttons through the included Home Assistant integration; phone/Flipper must remain connected |
+| Hey Google | Opt-in Flipper buttons via the direct Google developer bridge or Home Assistant; phone/Flipper must remain connected |
 
 Capture excludes rolling-code/dynamic signals and RAW Sub-GHz. This companion does not imply compatibility with every Momentum version or stock firmware. Playback also depends on regional radio restrictions. Use devices you own or have permission to control.
 
@@ -103,7 +103,7 @@ Report Android/app versions, exact firmware/API or TV model, reproduction and er
 
 ## Privacy
 
-Home data stays in private app storage; captures live on Flipper's SD card. No Flipper Home account, analytics or hosted backend. Bluetooth supports Flipper; network permission supports local TV discovery/control and optional HTTPS Home Assistant access. TV private keys stay in Android Keystore, pairing codes aren't stored, and connections verify the saved TV public-key fingerprint. Optional voice control sends selected action IDs/names to your Home Assistant; its access token is encrypted using Android Keystore. Google voice uses your existing Google/Home Assistant account connection.
+Home data stays in private app storage; captures live on Flipper's SD card. Manual remote control needs no account or hosted backend, and there are no analytics. Bluetooth supports Flipper; network permission supports local TV discovery/control and optional HTTPS voice access. TV private keys stay in Android Keystore, pairing codes aren't stored, and connections verify the saved TV public-key fingerprint. Optional voice sends selected action IDs/names to your own Google bridge or Home Assistant. Phone credentials are encrypted using Android Keystore; the bridge password is not saved. Direct Google requires a bridge account, hosting and Google account linking; this project supplies no shared hosted service.
 
 ## Build
 
@@ -120,7 +120,7 @@ Windows: `.\gradlew.bat testDebugUnitTest lintDebug assembleDebug`.
 
 APK: `app/build/outputs/apk/debug/app-debug.apk`. Install via Android Studio **Run** or `adb install -r app/build/outputs/apk/debug/app-debug.apk`. First build downloads dependencies/SDK/toolchain. The bundled FAP allows Android builds without a Flipper SDK; rebuilding it is documented separately.
 
-Version 0.2.0 passes **126 JVM tests**, assembly and lint (with warnings), **13 Python bridge tests** and **3 optional Home Assistant framework checks** (`python -m unittest discover -s tests -v`; install `homeassistant==2024.12.5` with Python 3.12 for framework checks). Isolated native checks cover saved data, Keystore mutual TLS, authenticated TV pairing, taps, holds, cancellation, reconnect and identity rejection, plus voice HTTPS/WebSocket authentication/reconnection, encrypted token persistence and opt-in/busy/duplicate/disabled command handling. These fixtures send no physical commands. Framework checks validate schemas, registration, metadata persistence and button callbacks against Home Assistant 2024.12.5; a full production server and newer versions need acceptance testing. Flipper connection and Princeton light capture/playback have been exercised on hardware; Google voice acceptance on a real Home Assistant installation remains to be tested.
+Version 0.3.0 passes **129 JVM tests**, assembly and lint (with warnings), **12 direct Google OAuth/fulfillment/WebSocket tests**, **13 Python registry tests** and **3 optional Home Assistant framework checks**. Run `pip install -r google_bridge/requirements.txt` then `python -m unittest discover -s tests -v`; use Python 3.12 with `homeassistant==2024.12.5` for the framework checks. Isolated native checks cover TV pairing/playback, both voice transports, encrypted credentials, Google bridge HTTPS sign-in, timed holds, matching remote cancellation, reconnection and opt-in/busy/duplicate/disabled command handling. Fixtures send no physical commands. Real Google developer-project linking, hosted deployment and physical phone/Nest voice acceptance remain to be completed. Direct Scene-only Google integrations cannot currently be publicly certified; see [Google setup and limits](docs/google-home.md).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [architecture notes](docs/ARCHITECTURE.md). CI builds/tests and provides a debug APK artifact; it sends no physical-device commands.
 

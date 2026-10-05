@@ -14,6 +14,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  google-bridge:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Test direct Google bridge
+        run: |
+          pip install -r google_bridge/requirements.txt
+          python -m unittest discover -s tests -p 'test_google_bridge.py' -v
   voice-bridge:
     runs-on: ubuntu-latest
     steps:

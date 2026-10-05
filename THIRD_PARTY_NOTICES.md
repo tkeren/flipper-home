@@ -15,6 +15,8 @@ Versions are in the Gradle build/wrapper files. Dependency notices packaged with
 
 The optional custom integration uses your installed Home Assistant APIs: https://github.com/home-assistant/core — Apache License 2.0. Home Assistant and Google services are not bundled with the APK.
 
+The optional direct Google server uses aiohttp: https://github.com/aio-libs/aiohttp — Apache License 2.0 and MIT, and Python's standard library. The deployment example uses Caddy: https://github.com/caddyserver/caddy — Apache License 2.0. Neither server runtime is bundled with the APK.
+
 ## Protocol references
 
 Kotlin codecs/client code are maintained here; the Python reference library is not bundled.
