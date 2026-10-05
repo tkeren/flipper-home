@@ -106,5 +106,15 @@ class VoiceTest {
         val wrongToken=VoiceProtocol("phone","Test")
         wrongToken.receive("{\"type\":\"auth_invalid\",\"message\":\"secret token\"}","token",emptyList())
         assertEquals("Home Assistant rejected the token",wrongToken.error)
+        assertTrue(wrongToken.setupFailure)
+    }
+    @Test fun expiredConnectionCanReconnectInsteadOfRequiringSetupAgain() {
+        val protocol = VoiceProtocol("phone","Test")
+        protocol.receive("{\"type\":\"auth_ok\"}","token",emptyList())
+        protocol.receive("{\"id\":1,\"type\":\"result\",\"success\":true}","token",emptyList())
+        protocol.receive("{\"id\":2,\"type\":\"result\",\"success\":false,\"error\":{\"code\":\"bridge_error\",\"message\":\"This phone connection is no longer active\"}}","token",emptyList())
+        assertTrue(protocol.ready)
+        assertFalse(protocol.setupFailure)
+        assertTrue(protocol.error.isNotBlank())
     }
 }

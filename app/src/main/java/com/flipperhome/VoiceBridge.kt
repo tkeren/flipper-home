@@ -113,7 +113,10 @@ internal class VoiceBridge(
                 if(owner != revision) break
                 val (reply, command) = current.receive(message, token, store.load().voiceActions)
                 if(reply != null) check(ws.send(reply)) { "Home Assistant connection closed" }
-                if(current.error.isNotBlank()) throw VoiceSetupException(current.error)
+                if(current.error.isNotBlank()) {
+                    if(current.setupFailure) throw VoiceSetupException(current.error)
+                    error(current.error)
+                }
                 if(current.ready) { handshake.cancel(); status.value = VoiceStatus(true, "Voice control connected") }
                 if(command != null) {
                     if(busy.value || manualBusy()) ws.send(current.result(command, VoiceResult(false, "Flipper is busy")))

@@ -46,7 +46,7 @@ internal suspend fun checkVoiceNative(context: Context) {
     val results = Channel<JSONObject>(16)
     val updated = Channel<JSONObject>(16)
     val token = "native-test-token-not-a-real-credential"
-    server.enqueue(MockResponse().withWebSocketUpgrade(object : WebSocketListener() {
+    val listener = object : WebSocketListener() {
         override fun onOpen(webSocket: WebSocket, response: Response) { serverSocket.set(webSocket); webSocket.send("{\"type\":\"auth_required\"}") }
         override fun onMessage(webSocket: WebSocket, text: String) {
             try {
@@ -64,7 +64,8 @@ internal suspend fun checkVoiceNative(context: Context) {
                 }
             } catch(e: Throwable) { results.close(e); updated.close(e); webSocket.cancel() }
         }
-    }))
+    }
+    server.enqueue(MockResponse().withWebSocketUpgrade(listener))
     withContext(Dispatchers.IO) { server.start(InetAddress.getByName("127.0.0.1"),0) }
     val settings = VoiceSettings(isolated)
     settings.save("https://localhost:${server.port}",token,true)
@@ -107,6 +108,10 @@ internal suspend fun checkVoiceNative(context: Context) {
         withContext(Dispatchers.Main) { bridge.cancelCommand() }
         releases.receive()
         check(!results.receive().getBoolean("success")) { "Cancelled command was reported successful" }
+        server.enqueue(MockResponse().withWebSocketUpgrade(listener))
+        serverSocket.get().send("{\"id\":99,\"type\":\"result\",\"success\":false,\"error\":{\"code\":\"bridge_error\",\"message\":\"This phone connection is no longer active\"}}")
+        withTimeout(3000) { bridge.status.first { !it.connected } }
+        withTimeout(12000) { bridge.status.first { it.connected } }
         command("disable")
         calls.receive()
         store.save(home.withVoice("native-lamp","",null))

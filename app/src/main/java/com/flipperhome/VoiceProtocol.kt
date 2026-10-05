@@ -10,13 +10,14 @@ internal class VoiceProtocol(private val bridgeId: String, private val phoneName
     private var registering = false
     var ready = false; private set
     var error = ""; private set
+    var setupFailure = false; private set
 
     fun receive(text: String, token: String, actions: List<VoiceAction>): Pair<String?, VoiceRequest?> {
         require(text.length <= 256_000) { "Home Assistant message is too large" }
         val message = JSONObject(text)
         return when(message.optString("type")) {
             "auth_required" -> JSONObject().put("type", "auth").put("access_token", token).toString() to null
-            "auth_invalid" -> { error = "Home Assistant rejected the token"; null to null }
+            "auth_invalid" -> { error = "Home Assistant rejected the token"; setupFailure = true; null to null }
             "auth_ok" -> {
                 check(!registering) { "Unexpected authentication response" }
                 registering = true
@@ -27,6 +28,7 @@ internal class VoiceProtocol(private val bridgeId: String, private val phoneName
             "result" -> {
                 if(!message.optBoolean("success")) {
                     val code = message.optJSONObject("error")?.optString("code").orEmpty()
+                    setupFailure = !ready || code == "unknown_command"
                     error = if(code == "unknown_command") "Install and enable the Flipper Home integration in Home Assistant"
                         else message.optJSONObject("error")?.optString("message")?.take(200) ?: "Home Assistant request failed"
                 } else if(registering && message.optInt("id") == subscriptionId) ready = true
